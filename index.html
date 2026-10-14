@@ -1,3 +1,4 @@
+<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#fff;color:#000}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
 <!DOCTYPE html>
 <html lang="de-CH" data-theme="light">
 <head>
@@ -165,6 +166,11 @@ button,input{font:inherit;color:inherit}
 .output-row .v small{display:block;text-align:right;font-size:11px}
 .expander{all:unset;display:flex;justify-content:flex-end;width:100%;cursor:pointer;padding:6px 0}
 .expander .chev{margin-right:0}
+.toggle-link{all:unset;box-sizing:border-box;display:inline-flex;align-items:center;gap:2px;margin-top:10px;padding:4px 0;cursor:pointer;color:var(--primary);font-size:12.5px;font-weight:600}
+.toggle-link:hover span:first-child{text-decoration:underline}
+.toggle-link:focus-visible{outline:2px solid var(--primary);outline-offset:2px}
+.toggle-link .chev{margin:2px 0 0 8px}
+.toggle-link .chev.down{margin-top:-4px}
 .detail-rows{padding:2px 0 4px}
 /* Einkommen & Steuern pro Rentenjahr */
 .tax-table{font-size:12.5px;font-variant-numeric:tabular-nums}
@@ -947,9 +953,9 @@ function renderOutput(r){
     h += row(hatTp ? 'BVK Rente (alle Schritte)' : 'BVK Rente', r.renteStart);
   } else if(state.modell === 'dyna'){
     h += row(`BVK Startrente mit ${altTxt}`, r.renteStart, 'sep');
-    h += expander();
     if(dynaOpen) h += dynaDetails(r);
     h += row('BVK Rente ab 75', r.rente75, 'hl');
+    if((r.dynaJahre || []).length > 1) h += expander((r.dynaJahre.length - 1));
   } else {
     h += row(`BVK Rente bis 75`, r.renteBis75, 'sep');
     h += row('BVK Rente ab 75', r.rente75, 'hl');
@@ -994,10 +1000,8 @@ function renderOutput(r){
   if(t) t.onclick = () => { dynaOpen = !dynaOpen; renderOutput(lastResult); };
   const tt = document.getElementById('taxToggle');
   if(tt) tt.onclick = () => { steuerOpen = !steuerOpen; renderOutput(lastResult); };
-  const mt = document.getElementById('dynaMonthly');
-  if(mt) mt.onclick = () => { dynaMonthly = !dynaMonthly; renderOutput(lastResult); };
 }
-let dynaMonthly = false, steuerOpen = false;
+let steuerOpen = false;
 function tpBlock(r){
   const lbl = state.modell === 'dyna' ? 'Startrente' : state.modell === 'kombi' ? 'Rente bis 75' : 'Rente';
   let h = `<div class="out-block"><h4>Ihre Pensionierung in ${r.teile.length} Schritten</h4><div class="tp-steps">`;
@@ -1025,26 +1029,20 @@ function steuerBlock(r){
     rows.forEach((g, i) => { h += taxRow(g, i === rows.length - 1 && rows.length > 1 ? 'hl' : ''); });
   } else {
     h += taxRow(rows[0]);
-    h += `<button type="button" class="expander" id="taxToggle" aria-expanded="${steuerOpen}" aria-label="Steuern für alle Rentenjahre ${steuerOpen ? 'ausblenden' : 'anzeigen'}"><span class="chev${steuerOpen ? '' : ' down'}"></span></button>`;
     if(steuerOpen){ h += '<div class="tax-sub">'; rows.slice(1, -1).forEach(g => { h += taxRow(g); }); h += '</div>'; }
     h += taxRow(rows[rows.length - 1], 'hl');
+    h += `<button type="button" class="toggle-link" id="taxToggle" aria-expanded="${steuerOpen}"><span>${steuerOpen ? 'Steuern pro Jahr ausblenden' : `Alle ${rows.length - 2} weiteren Rentenjahre anzeigen`}</span><span class="chev${steuerOpen ? '' : ' down'}" aria-hidden="true"></span></button>`;
   }
   const min = Math.min(...rows.map(g => g.steuer)), max = Math.max(...rows.map(g => g.steuer));
   h += `</div><p class="tax-note">${rows.length > 2 ? `Steuern je nach Rentenjahr zwischen ${fmt(min)} und ${fmt(max)} CHF. ` : ''}Einkommens-, Kantons- und Gemeindesteuern (Dummy-Tarif, im Portal via Taxware).</p></div>`;
   return h;
 }
-function expander(){
-  return `<button type="button" class="expander" id="dynaToggle" aria-expanded="${dynaOpen}" aria-label="Rentenverlauf bis 75 ${dynaOpen ? 'ausblenden' : 'anzeigen'}"><span class="chev${dynaOpen ? '' : ' down'}"></span></button>`;
+function expander(n){
+  return `<button type="button" class="toggle-link" id="dynaToggle" aria-expanded="${dynaOpen}"><span>${dynaOpen ? 'Jährliche Renten ausblenden' : `Alle ${n} jährlichen Renten bis 75 anzeigen`}</span><span class="chev${dynaOpen ? '' : ' down'}" aria-hidden="true"></span></button>`;
 }
 function dynaDetails(r){
-  const v = r.dynaVerlauf || [];
   let h = '<div class="detail-rows">';
-  if(dynaMonthly){
-    v.forEach(p => { h += `<div class="output-row"><span>${p.abHier ? 'ab ' : ''}Alter ${p.alter}</span><span class="v">${fmt(p.rente, 2)} / Monat</span></div>`; });
-  } else {
-    (r.dynaJahre || []).slice(1).forEach(j => { h += row(`BVK Rente mit ${j.alter}`, j.betrag); });
-  }
-  h += `<button type="button" class="expander" id="dynaMonthly" style="justify-content:flex-start;color:var(--primary);font-size:12px">${dynaMonthly ? 'Jahresrenten anzeigen' : 'Monatsrenten anzeigen'}</button>`;
+  (r.dynaJahre || []).slice(1).forEach(j => { h += row(`BVK Rente mit ${j.alter}`, j.betrag); });
   return h + '</div>';
 }
 
@@ -1152,3 +1150,5 @@ update();
 </script>
 </body>
 </html>
+
+</body></html>
